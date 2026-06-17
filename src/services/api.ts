@@ -84,3 +84,19 @@ export async function addVersion(scriptId: string, version: Version): Promise<vo
   });
   if (!res.ok) throw new Error('Failed to add version');
 }
+
+export async function queueBatchStories(prompt: string, count: number, authorId: string): Promise<void> {
+  const res = await fetch('/api/queue-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, count, authorId }),
+  });
+  if (!res.ok) throw new Error('Failed to queue batch');
+}
+
+export async function getQueueStatus(): Promise<number> {
+  const res = await fetch('/api/queue-status');
+  if (!res.ok) throw new Error('Failed to fetch queue status');
+  const data = await res.json();
+  return data.pendingCount;
+}

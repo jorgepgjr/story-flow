@@ -7,6 +7,7 @@ interface ScriptListProps {
   scripts: Script[];
   onSelectScript: (id: string) => void;
   onCreateNew: () => void;
+  onHome: () => void;
 }
 
 export const statusConfig: Record<ScriptStatus, { label: string; color: string; icon: React.ReactNode }> = {
@@ -17,12 +18,16 @@ export const statusConfig: Record<ScriptStatus, { label: string; color: string; 
   audio_generation: { label: 'Gerando Áudio', color: 'bg-purple-100 text-purple-700', icon: <Mic className="w-3 h-3 mr-1" /> },
 };
 
-export function ScriptList({ scripts, onSelectScript, onCreateNew }: ScriptListProps) {
+export function ScriptList({ scripts, onSelectScript, onCreateNew, onHome }: ScriptListProps) {
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50/50 pb-20">
       <div className="p-6 pb-2 pt-12 bg-white sticky top-0 z-10 shadow-sm border-b border-gray-100">
         <div className="flex justify-between items-center mb-6">
-          <div>
+          <div 
+            onClick={onHome}
+            className="cursor-pointer hover:opacity-80 transition-opacity"
+            title="Voltar ao Dashboard"
+          >
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">StoryFlow</h1>
             <p className="text-sm text-gray-500 font-medium mt-1">Meus Roteiros</p>
           </div>

@@ -1,19 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Loader2, Wand2, ArrowLeft, PenTool, Save, FileText, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getQueueStatus } from '../services/api';
 
 interface CreateStoryProps {
   onBack: () => void;
   onStoryGenerated: (storyData: { title: string; synopsis: string; content: string }) => void;
+  onQueueBatch: (prompt: string, count: number) => Promise<void>;
 }
 
 type Mode = 'ai' | 'manual';
 
-export function CreateStory({ onBack, onStoryGenerated }: CreateStoryProps) {
+export function CreateStory({ onBack, onStoryGenerated, onQueueBatch }: CreateStoryProps) {
   const [mode, setMode] = useState<Mode>('ai');
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [count, setCount] = useState<number>(1);
+  const [batchSuccess, setBatchSuccess] = useState(false);
+  const [queueCount, setQueueCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (mode === 'ai') {
+      getQueueStatus().then(setQueueCount).catch(console.error);
+      const interval = setInterval(() => {
+        getQueueStatus().then(setQueueCount).catch(console.error);
+      }, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [mode, batchSuccess]);
 
   // Manual mode states
   const [manualTitle, setManualTitle] = useState('');
@@ -27,6 +42,13 @@ export function CreateStory({ onBack, onStoryGenerated }: CreateStoryProps) {
     setError(null);
 
     try {
+      if (count > 1) {
+        await onQueueBatch(prompt, count);
+        setBatchSuccess(true);
+        setPrompt('');
+        return;
+      }
+
       const response = await fetch('/api/generate-story', {
         method: 'POST',
         headers: {
@@ -121,9 +143,59 @@ export function CreateStory({ onBack, onStoryGenerated }: CreateStoryProps) {
                   />
                 </div>
 
+                {queueCount > 0 && (
+                  <div className="p-4 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-sm flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span><strong>{queueCount}</strong> histórias na fila de espera.</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {window.location.hostname === 'localhost' && (
+                        <button 
+                          onClick={async () => {
+                            await fetch('/api/cron/process-queue');
+                            getQueueStatus().then(setQueueCount);
+                          }}
+                          className="text-xs font-bold bg-amber-200 hover:bg-amber-300 text-amber-900 px-3 py-1.5 rounded-lg transition-colors shadow-sm active:scale-95"
+                        >
+                          Forçar Cron (Local)
+                        </button>
+                      )}
+                      <div className="text-xs font-semibold bg-amber-100 px-2 py-1.5 rounded-lg">
+                        Tempo estimado: ~{queueCount} min
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {error && (
                   <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm">
                     {error}
+                  </div>
+                )}
+
+                {batchSuccess && (
+                  <div className="p-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-medium">
+                    🎉 {count} histórias foram adicionadas à fila! Elas aparecerão na sua lista gradativamente (1 por minuto) para não exceder os limites da Vercel.
+                  </div>
+                )}
+
+                {!batchSuccess && (
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Quantidade a gerar
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 5, 10, 15, 20].map(n => (
+                        <button
+                          key={n}
+                          onClick={() => setCount(n)}
+                          className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${count === n ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -139,17 +211,17 @@ export function CreateStory({ onBack, onStoryGenerated }: CreateStoryProps) {
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Agendado / Gerando...
+                      {count > 1 ? 'Agendando na Fila...' : 'Gerando História...'}
                     </>
                   ) : (
                     <>
                       <Wand2 className="w-5 h-5" />
-                      Gerar História
+                      {count > 1 ? `Agendar ${count} Histórias` : 'Gerar História'}
                     </>
                   )}
                 </button>
 
-                {isGenerating && (
+                {isGenerating && count === 1 && (
                   <div className="text-center text-sm text-gray-500 animate-pulse">
                     A IA está escrevendo a sua história. Isso pode levar alguns segundos.
                   </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ScriptList } from './components/ScriptList';
 import { ScriptDetail } from './components/ScriptDetail';
 import { CreateStory } from './components/CreateStory';
+import { Dashboard } from './components/Dashboard';
 import { CURRENT_USER } from './mockData';
 import { Script, ScriptStatus, Comment, User } from './types';
 import { AnimatePresence } from 'motion/react';
@@ -24,7 +25,13 @@ export default function App() {
           api.getScripts(),
           api.getUsers()
         ]);
-        setScripts(fetchedScripts);
+        
+        // Normalize legacy status
+        const normalizedScripts = fetchedScripts.map(s => ({
+          ...s,
+          status: (s.status as string) === 'ti_review' ? 'draft' : s.status
+        }));
+        setScripts(normalizedScripts);
         
         const map: Record<string, User> = {};
         fetchedUsers.forEach(u => map[u.id] = u);
@@ -168,19 +175,19 @@ export default function App() {
             setIsCreatingStory(false);
           }} 
           onCreateNew={handleCreateNew}
+          onHome={() => {
+            setSelectedScriptId(null);
+            setIsCreatingStory(false);
+          }}
         />
       </div>
 
       {/* Right Pane (Main Content) - Details or Create */}
       <div className={`flex-1 h-full relative ${(selectedScript || isCreatingStory) ? 'block' : 'hidden md:flex md:items-center md:justify-center md:bg-gray-50'}`}>
         {/* Empty state for desktop */}
+        {/* Dashboard for empty state */}
         {!selectedScript && !isCreatingStory && (
-          <div className="hidden md:flex flex-col items-center justify-center text-gray-400">
-            <svg className="w-16 h-16 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <p>Selecione uma história na lista ou crie uma nova.</p>
-          </div>
+          <Dashboard scripts={scripts} />
         )}
 
         <AnimatePresence>
@@ -188,6 +195,9 @@ export default function App() {
             <CreateStory 
               onBack={() => setIsCreatingStory(false)} 
               onStoryGenerated={handleStoryGenerated} 
+              onQueueBatch={async (prompt, count) => {
+                await api.queueBatchStories(prompt, count, CURRENT_USER.id);
+              }}
             />
           )}
           {selectedScript && !isCreatingStory && (
