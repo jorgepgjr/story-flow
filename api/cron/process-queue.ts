@@ -4,14 +4,8 @@ import { GoogleGenAI, Type } from '@google/genai';
 const ai = new GoogleGenAI({});
 
 export default async function handler(req: any, res: any) {
-  // Verificação de segurança (Apenas Vercel Cron ou dev local devem rodar isso)
-  const authHeader = req.headers.authorization;
-  if (
-    process.env.NODE_ENV === 'production' &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  // O Frontend agora é responsável por orquestrar a fila.
+  // Qualquer chamada a este endpoint apenas processa o próximo item (se houver).
 
   let supabase;
   try {
@@ -19,6 +13,8 @@ export default async function handler(req: any, res: any) {
   } catch (err: any) {
     return res.status(500).json({ error: 'Supabase init failed', details: err.message });
   }
+
+  let currentItemId = null;
 
   try {
     // 1. Busca a próxima história da fila
@@ -36,6 +32,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const item = queueItems[0];
+    currentItemId = item.id;
 
     // 2. Marca como processando
     const { error: lockError } = await supabase
@@ -124,6 +121,12 @@ Retorne um JSON com a seguinte estrutura:
 
   } catch (error: any) {
     console.error('Cron Processing Error:', error);
+    
+    // Se falhou no meio do processo (ex: erro no Gemini), devolvemos o item para a fila para tentar depois
+    if (currentItemId && supabase) {
+      await supabase.from('generation_queue').update({ status: 'pending' }).eq('id', currentItemId);
+    }
+
     return res.status(500).json({ error: 'Failed to process queue', details: error.message });
   }
 }
