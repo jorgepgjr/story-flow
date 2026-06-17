@@ -1,0 +1,6 @@
+{
+  "name": "StoryFlow",
+  "description": "App de aprovação de roteiros com fluxo de revisão e narração de áudio",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
