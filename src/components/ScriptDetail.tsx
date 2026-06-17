@@ -243,12 +243,11 @@ export function ScriptDetail({
                 {/* Timeline Nodes */}
                 {[
                   { state: 'draft', label: 'Roteiro (Rascunho)', desc: 'Autor escrevendo as ideias iniciais.' },
-                  { state: 'ti_review', label: 'Aprovação TI', desc: 'TI avaliando o texto gerado pela IA.' },
                   { state: 'review', label: 'Em Revisão', desc: 'Aguardando notas críticas da equipe.' },
                   { state: 'approved', label: 'Aprovado', desc: 'Roteiro finalizado e liberado.' },
                   { state: 'audio_generation', label: 'Produção de Áudio', desc: 'Sintetização e foley em andamento.' }
                 ].map((step, idx) => {
-                  const states: ScriptStatus[] = ['draft', 'generating', 'ti_review', 'review', 'approved', 'audio_generation'];
+                  const states: ScriptStatus[] = ['draft', 'generating', 'review', 'approved', 'audio_generation'];
                   const currentIndex = states.indexOf(script.status);
                   const stepIndex = states.indexOf(step.state as ScriptStatus);
                   
@@ -277,16 +276,6 @@ export function ScriptDetail({
                   <button onClick={() => onUpdateStatus(script.id, 'review')} className="w-full bg-gray-900 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2">
                     Enviar para Revisão <ChevronRight className="w-4 h-4" />
                   </button>
-                )}
-                {script.status === 'ti_review' && (
-                  <div className="flex gap-3">
-                    <button onClick={() => onUpdateStatus(script.id, 'draft')} className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-xl shadow-sm active:scale-95 transition-transform">
-                      Editar Manualmente
-                    </button>
-                    <button onClick={() => onUpdateStatus(script.id, 'review')} className="flex-1 bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2">
-                      Enviar para Revisão <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
                 )}
                 {script.status === 'review' && (
                    <div className="flex gap-3">

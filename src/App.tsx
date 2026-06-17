@@ -120,7 +120,7 @@ export default function App() {
       id: `s_${Date.now()}`,
       title: storyData.title,
       synopsis: storyData.synopsis,
-      status: 'ti_review',
+      status: 'draft',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       authorId: CURRENT_USER.id,
@@ -192,6 +192,7 @@ export default function App() {
           )}
           {selectedScript && !isCreatingStory && (
             <ScriptDetail
+              key={selectedScript.id}
               script={selectedScript}
               currentUser={CURRENT_USER}
               usersMap={usersMap}

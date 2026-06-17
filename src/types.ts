@@ -1,4 +1,4 @@
-export type ScriptStatus = 'draft' | 'generating' | 'ti_review' | 'review' | 'approved' | 'audio_generation';
+export type ScriptStatus = 'draft' | 'generating' | 'review' | 'approved' | 'audio_generation';
 
 export interface User {
   id: string;

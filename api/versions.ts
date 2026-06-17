@@ -1,6 +1,13 @@
-import { supabase } from './lib/supabase';
+import { getSupabase } from './_lib/supabase.js';
 
 export default async function handler(req: any, res: any) {
+  let supabase;
+  try {
+    supabase = getSupabase();
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Supabase init failed', details: err.message });
+  }
+
   if (req.method === 'POST') {
     try {
       const { scriptId, version } = req.body;
