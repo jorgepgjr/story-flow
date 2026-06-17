@@ -1,14 +1,15 @@
-export type ScriptStatus = 'draft' | 'review' | 'approved' | 'audio_generation';
+export type ScriptStatus = 'draft' | 'generating' | 'ti_review' | 'review' | 'approved' | 'audio_generation';
 
 export interface User {
   id: string;
   name: string;
   avatar: string;
-  role: 'author' | 'reviewer' | 'producer';
+  role: 'ti' | 'author' | 'reviewer' | 'producer';
 }
 
 export interface Comment {
   id: string;
+  scriptId: string;
   userId: string;
   text: string;
   createdAt: string;
@@ -17,6 +18,7 @@ export interface Comment {
 
 export interface Version {
   id: string;
+  scriptId: string;
   versionNumber: string;
   content: string;
   createdAt: string;

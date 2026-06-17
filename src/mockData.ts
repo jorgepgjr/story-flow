@@ -1,10 +1,10 @@
 import { Script, User } from './types';
 
 export const CURRENT_USER: User = {
-  id: 'u1',
-  name: 'Jorge',
+  id: 'u_ti',
+  name: 'Jorge (TI)',
   avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jorge',
-  role: 'author'
+  role: 'ti'
 };
 
 export const MOCK_USERS: Record<string, User> = {
@@ -23,7 +23,7 @@ export const MOCK_USERS: Record<string, User> = {
   }
 };
 
-export const MOCK_SCRIPTS: Script[] = [
+export const MOCK_SCRIPTS: any[] = [
   {
     id: 's1',
     title: 'O Sussurro na Floresta',

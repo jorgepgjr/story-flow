@@ -1,92 +1,135 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ScriptList } from './components/ScriptList';
 import { ScriptDetail } from './components/ScriptDetail';
-import { MOCK_SCRIPTS, CURRENT_USER, MOCK_USERS } from './mockData';
-import { Script, ScriptStatus, Version, Comment } from './types';
+import { CreateStory } from './components/CreateStory';
+import { CURRENT_USER } from './mockData';
+import { Script, ScriptStatus, Comment, User } from './types';
 import { AnimatePresence } from 'motion/react';
+import { Loader2 } from 'lucide-react';
+import * as api from './services/api';
 
 export default function App() {
-  const [scripts, setScripts] = useState<Script[]>(MOCK_SCRIPTS);
+  const [scripts, setScripts] = useState<Script[]>([]);
+  const [usersMap, setUsersMap] = useState<Record<string, User>>({});
   const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null);
+  const [isCreatingStory, setIsCreatingStory] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const selectedScript = scripts.find(s => s.id === selectedScriptId) || null;
+  const selectedScript = scripts.find(s => s.id === selectedScriptId);
 
-  const handleUpdateStatus = (id: string, newStatus: ScriptStatus) => {
-    setScripts(prev => prev.map(s => {
-      if (s.id === id) {
-        return { ...s, status: newStatus, updatedAt: new Date().toISOString() };
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [fetchedScripts, fetchedUsers] = await Promise.all([
+          api.getScripts(),
+          api.getUsers()
+        ]);
+        setScripts(fetchedScripts);
+        
+        const map: Record<string, User> = {};
+        fetchedUsers.forEach(u => map[u.id] = u);
+        setUsersMap(map);
+      } catch (err) {
+        console.error("Erro ao carregar dados:", err);
+      } finally {
+        setIsLoading(false);
       }
-      return s;
-    }));
+    }
+    loadData();
+  }, []);
+
+  const handleUpdateStatus = async (id: string, status: ScriptStatus) => {
+    try {
+      await api.updateScriptStatus(id, status);
+      setScripts(prev => prev.map(s => 
+        s.id === id ? { ...s, status, updatedAt: new Date().toISOString() } : s
+      ));
+    } catch (err) {
+      console.error("Erro ao atualizar status:", err);
+      alert("Falha ao atualizar status");
+    }
   };
 
-  const handleAddComment = (id: string, text: string) => {
-    setScripts(prev => prev.map(s => {
-      if (s.id === id) {
-        const newComment: Comment = {
-          id: `c_${Date.now()}`,
-          userId: CURRENT_USER.id,
-          text,
-          createdAt: new Date().toISOString(),
-          resolved: false,
-        };
-        return { 
-          ...s, 
-          comments: [...s.comments, newComment],
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return s;
-    }));
+  const handleAddComment = async (scriptId: string, text: string) => {
+    const newComment: Comment = {
+      id: `c_${Date.now()}`,
+      scriptId,
+      userId: CURRENT_USER.id,
+      text,
+      createdAt: new Date().toISOString(),
+      resolved: false
+    };
+
+    try {
+      await api.addComment(newComment);
+      setScripts(prev => prev.map(s => 
+        s.id === scriptId ? { ...s, comments: [newComment, ...s.comments] } : s
+      ));
+    } catch (err) {
+      console.error("Erro ao adicionar comentário:", err);
+      alert("Falha ao adicionar comentário");
+    }
   };
 
-  const handleSaveVersion = (id: string, newContent: string) => {
-    setScripts(prev => prev.map(s => {
-      if (s.id === id) {
-        const currentVersion = s.versions[s.versions.length - 1];
-        
-        // Simples bump da versão minor. Ex: "1.0" -> "1.1"
-        const parts = currentVersion.versionNumber.split('.');
-        let minor = parseInt(parts[1] || '0', 10);
-        const nextVersionNumber = `${parts[0]}.${minor + 1}`;
+  const handleSaveVersion = async (scriptId: string, content: string) => {
+    const script = scripts.find(s => s.id === scriptId);
+    if (!script) return;
 
-        const newVersion: Version = {
-          id: `v_${Date.now()}`,
-          versionNumber: nextVersionNumber,
-          content: newContent,
-          createdAt: new Date().toISOString(),
-          authorId: CURRENT_USER.id,
-        };
-        
-        return { 
-          ...s, 
-          versions: [...s.versions, newVersion],
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return s;
-    }));
+    const currentVersionNumber = parseFloat(script.versions[0]?.versionNumber || '0.9');
+    const newVersion = {
+      id: `v_${Date.now()}`,
+      scriptId: scriptId,
+      versionNumber: (currentVersionNumber + 0.1).toFixed(1),
+      content,
+      createdAt: new Date().toISOString(),
+      authorId: CURRENT_USER.id
+    };
+
+    try {
+      await api.addVersion(scriptId, newVersion);
+      setScripts(prev => prev.map(s => 
+        s.id === scriptId 
+          ? { ...s, versions: [newVersion, ...s.versions], updatedAt: new Date().toISOString() } 
+          : s
+      ));
+    } catch (err) {
+      console.error("Erro ao salvar nova versão:", err);
+      alert("Falha ao salvar versão");
+    }
   };
 
   const handleCreateNew = () => {
+    setIsCreatingStory(true);
+  };
+
+  const handleDeleteScript = async (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta história?')) {
+      try {
+        await api.deleteScript(id);
+        setScripts(prev => prev.filter(s => s.id !== id));
+        setSelectedScriptId(null);
+      } catch (err) {
+        console.error("Erro ao excluir história:", err);
+        alert("Falha ao excluir história");
+      }
+    }
+  };
+
+  const handleStoryGenerated = async (storyData: { title: string; synopsis: string; content: string }) => {
     const newScript: Script = {
       id: `s_${Date.now()}`,
-      title: 'Novo Roteiro Sem Título',
-      synopsis: 'Adicione uma sinopse aqui...',
-      status: 'draft',
+      title: storyData.title,
+      synopsis: storyData.synopsis,
+      status: 'ti_review',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       authorId: CURRENT_USER.id,
       versions: [
         {
           id: `v_init_${Date.now()}`,
+          scriptId: `s_${Date.now()}`,
           versionNumber: '1.0',
-          content: '',
+          content: storyData.content,
           createdAt: new Date().toISOString(),
           authorId: CURRENT_USER.id,
         }
@@ -94,34 +137,69 @@ export default function App() {
       comments: []
     };
     
-    setScripts([newScript, ...scripts]);
-    setSelectedScriptId(newScript.id);
+    try {
+      await api.createScript(newScript);
+      setScripts([newScript, ...scripts]);
+      setIsCreatingStory(false);
+      setSelectedScriptId(newScript.id);
+    } catch (err) {
+      console.error("Erro ao criar história:", err);
+      alert("Falha ao criar história no banco de dados");
+    }
   };
 
-  return (
-    <div className="bg-gray-200 min-h-screen text-gray-900 font-sans sm:p-4 md:p-8 lg:p-12 flex justify-center items-center">
-      {/* Mobile Frame Container */}
-      <div className="w-full max-w-md mx-auto bg-white h-[100dvh] sm:h-[850px] sm:max-h-[90vh] sm:rounded-[40px] sm:shadow-2xl sm:border-[8px] sm:border-gray-900 overflow-hidden relative flex flex-col">
-        
-        {/* Simula o entalhe superior em desktop para dar o vibe mobile */}
-        <div className="hidden sm:block absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-900 rounded-b-2xl z-50"></div>
+  if (isLoading) {
+    return (
+      <div className="bg-white h-[100dvh] w-full flex items-center justify-center flex-col gap-4 text-gray-400">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <p>Carregando histórias...</p>
+      </div>
+    );
+  }
 
+  return (
+    <div className="bg-white h-[100dvh] w-full text-gray-900 font-sans flex overflow-hidden">
+      {/* Left Pane (Sidebar) - Script List */}
+      <div className={`w-full md:w-[400px] md:min-w-[400px] shrink-0 border-r border-gray-200 flex flex-col h-full bg-gray-50/50 ${(selectedScript || isCreatingStory) ? 'hidden md:flex' : 'flex'}`}>
         <ScriptList 
           scripts={scripts} 
-          onSelectScript={setSelectedScriptId} 
+          onSelectScript={(id) => {
+            setSelectedScriptId(id);
+            setIsCreatingStory(false);
+          }} 
           onCreateNew={handleCreateNew}
         />
+      </div>
+
+      {/* Right Pane (Main Content) - Details or Create */}
+      <div className={`flex-1 h-full relative ${(selectedScript || isCreatingStory) ? 'block' : 'hidden md:flex md:items-center md:justify-center md:bg-gray-50'}`}>
+        {/* Empty state for desktop */}
+        {!selectedScript && !isCreatingStory && (
+          <div className="hidden md:flex flex-col items-center justify-center text-gray-400">
+            <svg className="w-16 h-16 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <p>Selecione uma história na lista ou crie uma nova.</p>
+          </div>
+        )}
 
         <AnimatePresence>
-          {selectedScript && (
+          {isCreatingStory && (
+            <CreateStory 
+              onBack={() => setIsCreatingStory(false)} 
+              onStoryGenerated={handleStoryGenerated} 
+            />
+          )}
+          {selectedScript && !isCreatingStory && (
             <ScriptDetail
               script={selectedScript}
               currentUser={CURRENT_USER}
-              usersMap={MOCK_USERS}
+              usersMap={usersMap}
               onBack={() => setSelectedScriptId(null)}
               onUpdateStatus={handleUpdateStatus}
               onAddComment={handleAddComment}
               onSaveVersion={handleSaveVersion}
+              onDeleteScript={handleDeleteScript}
             />
           )}
         </AnimatePresence>

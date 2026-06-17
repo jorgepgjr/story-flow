@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, MessageSquare, History, CheckCircle2, Send, Edit3, Save, Mic, FileText } from 'lucide-react';
+import { ArrowLeft, MessageSquare, History, CheckCircle2, Send, Edit3, Save, Mic, FileText, Trash2 } from 'lucide-react';
 import { Script, Comment, Version, User, ScriptStatus } from '../types';
 import { statusConfig } from './ScriptList';
 
@@ -12,12 +12,13 @@ interface ScriptDetailProps {
   onUpdateStatus: (id: string, status: ScriptStatus) => void;
   onAddComment: (id: string, text: string) => void;
   onSaveVersion: (id: string, content: string) => void;
+  onDeleteScript: (id: string) => void;
 }
 
 type Tab = 'editor' | 'comments' | 'versions' | 'flow';
 
 export function ScriptDetail({ 
-  script, currentUser, usersMap, onBack, onUpdateStatus, onAddComment, onSaveVersion 
+  script, currentUser, usersMap, onBack, onUpdateStatus, onAddComment, onSaveVersion, onDeleteScript 
 }: ScriptDetailProps) {
   
   const [activeTab, setActiveTab] = useState<Tab>('editor');
@@ -65,17 +66,26 @@ export function ScriptDetail({
     >
       {/* Header */}
       <div className="bg-white px-4 pt-12 pb-4 border-b border-gray-100 flex items-start gap-4 shadow-sm z-10 shrink-0">
-        <button onClick={onBack} className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors">
+        <button onClick={onBack} className="md:hidden p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-bold text-gray-900 truncate">{script.title}</h2>
-          <div className="flex items-center gap-2 mt-1">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${config.color}`}>
-              {config.label}
-            </span>
-            <span className="text-xs text-gray-400 font-medium">v{currentVersion?.versionNumber}</span>
+        <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-xl font-bold text-gray-900 truncate">{script.title}</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${config.color}`}>
+                {config.label}
+              </span>
+              <span className="text-xs text-gray-400 font-medium">v{currentVersion?.versionNumber}</span>
+            </div>
           </div>
+          <button 
+            onClick={() => onDeleteScript(script.id)}
+            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors shrink-0"
+            title="Excluir História"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -233,11 +243,12 @@ export function ScriptDetail({
                 {/* Timeline Nodes */}
                 {[
                   { state: 'draft', label: 'Roteiro (Rascunho)', desc: 'Autor escrevendo as ideias iniciais.' },
+                  { state: 'ti_review', label: 'Aprovação TI', desc: 'TI avaliando o texto gerado pela IA.' },
                   { state: 'review', label: 'Em Revisão', desc: 'Aguardando notas críticas da equipe.' },
                   { state: 'approved', label: 'Aprovado', desc: 'Roteiro finalizado e liberado.' },
                   { state: 'audio_generation', label: 'Produção de Áudio', desc: 'Sintetização e foley em andamento.' }
                 ].map((step, idx) => {
-                  const states: ScriptStatus[] = ['draft', 'review', 'approved', 'audio_generation'];
+                  const states: ScriptStatus[] = ['draft', 'generating', 'ti_review', 'review', 'approved', 'audio_generation'];
                   const currentIndex = states.indexOf(script.status);
                   const stepIndex = states.indexOf(step.state as ScriptStatus);
                   
@@ -266,6 +277,16 @@ export function ScriptDetail({
                   <button onClick={() => onUpdateStatus(script.id, 'review')} className="w-full bg-gray-900 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2">
                     Enviar para Revisão <ChevronRight className="w-4 h-4" />
                   </button>
+                )}
+                {script.status === 'ti_review' && (
+                  <div className="flex gap-3">
+                    <button onClick={() => onUpdateStatus(script.id, 'draft')} className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-xl shadow-sm active:scale-95 transition-transform">
+                      Editar Manualmente
+                    </button>
+                    <button onClick={() => onUpdateStatus(script.id, 'review')} className="flex-1 bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2">
+                      Enviar para Revisão <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
                 {script.status === 'review' && (
                    <div className="flex gap-3">
