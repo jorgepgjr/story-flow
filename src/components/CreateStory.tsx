@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, Wand2, ArrowLeft, PenTool, Save, FileText, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getQueueStatus } from '../services/api';
 
 interface CreateStoryProps {
   onBack: () => void;
@@ -18,17 +17,6 @@ export function CreateStory({ onBack, onStoryGenerated, onQueueBatch }: CreateSt
   const [error, setError] = useState<string | null>(null);
   const [count, setCount] = useState<number>(1);
   const [batchSuccess, setBatchSuccess] = useState(false);
-  const [queueCount, setQueueCount] = useState<number>(0);
-
-  useEffect(() => {
-    if (mode === 'ai') {
-      getQueueStatus().then(setQueueCount).catch(console.error);
-      const interval = setInterval(() => {
-        getQueueStatus().then(setQueueCount).catch(console.error);
-      }, 15000);
-      return () => clearInterval(interval);
-    }
-  }, [mode, batchSuccess]);
 
   // Manual mode states
   const [manualTitle, setManualTitle] = useState('');
@@ -142,31 +130,6 @@ export function CreateStory({ onBack, onStoryGenerated, onQueueBatch }: CreateSt
                     disabled={isGenerating}
                   />
                 </div>
-
-                {queueCount > 0 && (
-                  <div className="p-4 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-sm flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span><strong>{queueCount}</strong> histórias na fila de espera.</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {window.location.hostname === 'localhost' && (
-                        <button 
-                          onClick={async () => {
-                            await fetch('/api/cron/process-queue');
-                            getQueueStatus().then(setQueueCount);
-                          }}
-                          className="text-xs font-bold bg-amber-200 hover:bg-amber-300 text-amber-900 px-3 py-1.5 rounded-lg transition-colors shadow-sm active:scale-95"
-                        >
-                          Forçar Cron (Local)
-                        </button>
-                      )}
-                      <div className="text-xs font-semibold bg-amber-100 px-2 py-1.5 rounded-lg">
-                        Tempo estimado: ~{queueCount} min
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {error && (
                   <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm">

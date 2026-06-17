@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { FileText, Clock, ChevronRight, CheckCircle2, Mic, FileEdit } from 'lucide-react';
+import { FileText, Clock, ChevronRight, CheckCircle2, Mic, FileEdit, LayoutDashboard, Loader2 } from 'lucide-react';
 import { Script, ScriptStatus } from '../types';
 
 interface ScriptListProps {
@@ -8,6 +8,8 @@ interface ScriptListProps {
   onSelectScript: (id: string) => void;
   onCreateNew: () => void;
   onHome: () => void;
+  onOpenDashboard?: () => void;
+  queueCount?: number;
 }
 
 export const statusConfig: Record<ScriptStatus, { label: string; color: string; icon: React.ReactNode }> = {
@@ -18,11 +20,11 @@ export const statusConfig: Record<ScriptStatus, { label: string; color: string; 
   audio_generation: { label: 'Gerando Áudio', color: 'bg-purple-100 text-purple-700', icon: <Mic className="w-3 h-3 mr-1" /> },
 };
 
-export function ScriptList({ scripts, onSelectScript, onCreateNew, onHome }: ScriptListProps) {
+export function ScriptList({ scripts, onSelectScript, onCreateNew, onHome, onOpenDashboard, queueCount = 0 }: ScriptListProps) {
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50/50 pb-20">
       <div className="p-6 pb-2 pt-12 bg-white sticky top-0 z-10 shadow-sm border-b border-gray-100">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-4">
           <div 
             onClick={onHome}
             className="cursor-pointer hover:opacity-80 transition-opacity"
@@ -31,13 +33,31 @@ export function ScriptList({ scripts, onSelectScript, onCreateNew, onHome }: Scr
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">StoryFlow</h1>
             <p className="text-sm text-gray-500 font-medium mt-1">Meus Roteiros</p>
           </div>
-          <button
-            onClick={onCreateNew}
-            className="bg-gray-900 hover:bg-gray-800 text-white rounded-full p-3 shadow-lg active:scale-95 transition-transform"
-          >
-            <FileText className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onOpenDashboard}
+              className="md:hidden bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full p-3 shadow-sm active:scale-95 transition-transform"
+              title="Ver Dashboard"
+            >
+              <LayoutDashboard className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onCreateNew}
+              className="bg-gray-900 hover:bg-gray-800 text-white rounded-full p-3 shadow-lg active:scale-95 transition-transform"
+            >
+              <FileText className="w-5 h-5" />
+            </button>
+          </div>
         </div>
+        
+        {queueCount > 0 && (
+          <div className="mb-4 p-3 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-sm flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2 font-medium">
+              <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+              <span>Gerando... ({queueCount} na fila)</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="p-4 space-y-4">

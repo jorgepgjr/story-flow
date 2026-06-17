@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { ScriptList } from './components/ScriptList';
 import { ScriptDetail } from './components/ScriptDetail';
 import { CreateStory } from './components/CreateStory';
@@ -14,9 +15,52 @@ export default function App() {
   const [usersMap, setUsersMap] = useState<Record<string, User>>({});
   const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null);
   const [isCreatingStory, setIsCreatingStory] = useState(false);
+  const [isViewingDashboard, setIsViewingDashboard] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const [queueCount, setQueueCount] = useState<number>(0);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
   const selectedScript = scripts.find(s => s.id === selectedScriptId);
+
+  // Load initial queue count and start polling
+  useEffect(() => {
+    const fetchQueue = () => {
+      api.getQueueStatus().then(setQueueCount).catch(console.error);
+    };
+    fetchQueue();
+    const interval = setInterval(fetchQueue, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Frontend Worker: Processes the queue automatically
+  useEffect(() => {
+    if (queueCount > 0 && !isProcessingQueue) {
+      const timer = setTimeout(async () => {
+        setIsProcessingQueue(true);
+        try {
+          const res = await fetch('/api/cron/process-queue');
+          if (res.ok) {
+            // Se processou com sucesso, atualiza a lista de roteiros
+            const fetchedScripts = await api.getScripts();
+            const normalizedScripts = fetchedScripts.map(s => ({
+              ...s,
+              status: (s.status as string) === 'ti_review' ? 'draft' : s.status
+            }));
+            setScripts(normalizedScripts);
+          }
+          // Atualiza a contagem da fila independentemente
+          const newCount = await api.getQueueStatus();
+          setQueueCount(newCount);
+        } catch (err) {
+          console.error('Erro no processamento da fila:', err);
+        } finally {
+          setIsProcessingQueue(false);
+        }
+      }, 5000); // 5 seconds wait between each processing
+      return () => clearTimeout(timer);
+    }
+  }, [queueCount, isProcessingQueue]);
 
   useEffect(() => {
     async function loadData() {
@@ -107,6 +151,7 @@ export default function App() {
 
   const handleCreateNew = () => {
     setIsCreatingStory(true);
+    setIsViewingDashboard(false);
   };
 
   const handleDeleteScript = async (id: string) => {
@@ -167,27 +212,43 @@ export default function App() {
   return (
     <div className="bg-white h-[100dvh] w-full text-gray-900 font-sans flex overflow-hidden">
       {/* Left Pane (Sidebar) - Script List */}
-      <div className={`w-full md:w-[400px] md:min-w-[400px] shrink-0 border-r border-gray-200 flex flex-col h-full bg-gray-50/50 ${(selectedScript || isCreatingStory) ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-[400px] md:min-w-[400px] shrink-0 border-r border-gray-200 flex flex-col h-full bg-gray-50/50 ${(selectedScript || isCreatingStory || isViewingDashboard) ? 'hidden md:flex' : 'flex'}`}>
         <ScriptList 
           scripts={scripts} 
+          queueCount={queueCount}
           onSelectScript={(id) => {
             setSelectedScriptId(id);
             setIsCreatingStory(false);
+            setIsViewingDashboard(false);
           }} 
           onCreateNew={handleCreateNew}
           onHome={() => {
             setSelectedScriptId(null);
             setIsCreatingStory(false);
+            setIsViewingDashboard(false);
           }}
+          onOpenDashboard={() => setIsViewingDashboard(true)}
         />
       </div>
 
       {/* Right Pane (Main Content) - Details or Create */}
-      <div className={`flex-1 h-full relative ${(selectedScript || isCreatingStory) ? 'block' : 'hidden md:flex md:items-center md:justify-center md:bg-gray-50'}`}>
-        {/* Empty state for desktop */}
+      <div className={`flex-1 h-full relative ${(selectedScript || isCreatingStory || isViewingDashboard) ? 'flex flex-col' : 'hidden md:flex md:flex-col md:items-center md:justify-center md:bg-gray-50'}`}>
         {/* Dashboard for empty state */}
         {!selectedScript && !isCreatingStory && (
-          <Dashboard scripts={scripts} />
+          <div className="flex-1 overflow-y-auto w-full">
+            {isViewingDashboard && (
+              <header className="md:hidden sticky top-0 bg-white/80 backdrop-blur-md z-10 px-6 py-4 flex items-center gap-4 border-b border-gray-100 shrink-0">
+                <button 
+                  onClick={() => setIsViewingDashboard(false)}
+                  className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5 text-gray-700" />
+                </button>
+                <h2 className="text-lg font-bold text-gray-900">Dashboard</h2>
+              </header>
+            )}
+            <Dashboard scripts={scripts} />
+          </div>
         )}
 
         <AnimatePresence>
