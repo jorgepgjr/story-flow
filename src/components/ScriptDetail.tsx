@@ -24,8 +24,15 @@ export function ScriptDetail({
   
   const [activeTab, setActiveTab] = useState<Tab>('editor');
   
-  const currentVersion = script.versions[script.versions.length - 1];
+  const currentVersion = script.versions[0];
   const [draftContent, setDraftContent] = useState(currentVersion?.content || '');
+
+  // Sync draft content when current version changes (e.g. after a save or promote)
+  useEffect(() => {
+    if (currentVersion?.content) {
+      setDraftContent(currentVersion.content);
+    }
+  }, [currentVersion?.id]);
   const [commentText, setCommentText] = useState('');
   const commentsEndRef = useRef<HTMLDivElement>(null);
   
@@ -246,7 +253,7 @@ export function ScriptDetail({
           {/* VERSIONS TAB */}
           {activeTab === 'versions' && (
             <motion.div key="versions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 space-y-3">
-              {[...script.versions].reverse().map((v, i) => {
+              {script.versions.map((v, i) => {
                 const isLatest = i === 0;
                 const author = usersMap[v.authorId];
                 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(v.createdAt));
@@ -260,9 +267,24 @@ export function ScriptDetail({
                       </div>
                       <span className="text-xs text-gray-400">{date}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <img src={author?.avatar} className="w-4 h-4 rounded-full" />
-                      <span>Editado por {author?.name}</span>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <div className="flex items-center gap-2">
+                        <img src={author?.avatar} className="w-4 h-4 rounded-full" />
+                        <span>Editado por {author?.name}</span>
+                      </div>
+                      {!isLatest && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Tem certeza que deseja promover esta versão antiga para a atual?')) {
+                              onSaveVersion(script.id, v.content);
+                              setActiveTab('editor');
+                            }
+                          }}
+                          className="font-bold text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                        >
+                          Tornar Atual
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
