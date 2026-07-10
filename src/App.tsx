@@ -113,26 +113,7 @@ export default function App() {
     }
   };
 
-  const handleAddComment = async (scriptId: string, text: string) => {
-    const newComment: Comment = {
-      id: `c_${Date.now()}`,
-      scriptId,
-      userId: CURRENT_USER.id,
-      text,
-      createdAt: new Date().toISOString(),
-      resolved: false
-    };
 
-    try {
-      await api.addComment(newComment);
-      setScripts(prev => prev.map(s => 
-        s.id === scriptId ? { ...s, comments: [newComment, ...s.comments] } : s
-      ));
-    } catch (err) {
-      console.error("Erro ao adicionar comentário:", err);
-      alert("Falha ao adicionar comentário");
-    }
-  };
 
   const handleSaveVersion = async (scriptId: string, content: string) => {
     const script = scripts.find(s => s.id === scriptId);
@@ -282,7 +263,7 @@ export default function App() {
               onBack={() => setSelectedScriptId(null)}
               onUpdateStatus={handleUpdateStatus}
               onUpdateTitle={handleUpdateTitle}
-              onAddComment={handleAddComment}
+
               onSaveVersion={handleSaveVersion}
               onDeleteScript={handleDeleteScript}
             />

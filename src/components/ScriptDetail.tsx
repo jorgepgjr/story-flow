@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, MessageSquare, History, CheckCircle2, Send, Edit3, Save, Mic, FileText, Trash2 } from 'lucide-react';
+import { ArrowLeft, History, CheckCircle2, Edit3, Save, Mic, FileText, Trash2, Loader2, Podcast, Link as LinkIcon, Headphones } from 'lucide-react';
 import { Script, Comment, Version, User, ScriptStatus } from '../types';
 import { statusConfig } from './ScriptList';
 
@@ -11,30 +11,40 @@ interface ScriptDetailProps {
   onBack: () => void;
   onUpdateStatus: (id: string, status: ScriptStatus) => void;
   onUpdateTitle?: (id: string, newTitle: string) => void;
-  onAddComment: (id: string, text: string) => void;
-  onSaveVersion: (id: string, content: string) => void;
+  onSaveVersion: (id: string, content: string) => Promise<void>;
   onDeleteScript: (id: string) => void;
 }
 
-type Tab = 'editor' | 'comments' | 'versions' | 'flow';
+type Tab = 'editor' | 'publish' | 'flow';
 
 export function ScriptDetail({ 
-  script, currentUser, usersMap, onBack, onUpdateStatus, onUpdateTitle, onAddComment, onSaveVersion, onDeleteScript 
+  script, currentUser, usersMap, onBack, onUpdateStatus, onUpdateTitle, onSaveVersion, onDeleteScript 
 }: ScriptDetailProps) {
   
   const [activeTab, setActiveTab] = useState<Tab>('editor');
   
   const currentVersion = script.versions[0];
   const [draftContent, setDraftContent] = useState(currentVersion?.content || '');
+  const [selectedVersionId, setSelectedVersionId] = useState<string>(currentVersion?.id);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Sync draft content when current version changes (e.g. after a save or promote)
+  // Sync selected version when a new version is added (currentVersion changes)
+  useEffect(() => {
+    if (currentVersion?.id) {
+      setSelectedVersionId(currentVersion.id);
+    }
+  }, [currentVersion?.id]);
+
+  const viewedVersion = script.versions.find(v => v.id === selectedVersionId) || currentVersion;
+  const isViewingLatest = viewedVersion.id === currentVersion.id;
+
+  // Sync draft content when current version changes
   useEffect(() => {
     if (currentVersion?.content) {
       setDraftContent(currentVersion.content);
     }
   }, [currentVersion?.id]);
-  const [commentText, setCommentText] = useState('');
-  const commentsEndRef = useRef<HTMLDivElement>(null);
+
   
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(script.title);
@@ -54,27 +64,31 @@ export function ScriptDetail({
     setIsEditingTitle(false);
   };
 
-  // Auto-scroll comments
-  useEffect(() => {
-    if (activeTab === 'comments') {
-      commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [script.comments.length, activeTab]);
+
 
   const hasUnsavedChanges = draftContent !== currentVersion?.content;
 
-  const handleSaveDraft = () => {
-    if (hasUnsavedChanges && draftContent.trim()) {
-      onSaveVersion(script.id, draftContent);
+  const handleSaveDraft = async () => {
+    if (hasUnsavedChanges && draftContent.trim() && !isSaving) {
+      setIsSaving(true);
+      try {
+        await onSaveVersion(script.id, draftContent);
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
-  const handleSendComment = () => {
-    if (commentText.trim()) {
-      onAddComment(script.id, commentText);
-      setCommentText('');
+  const handlePromoteVersion = async (version: Version) => {
+    setIsSaving(true);
+    try {
+      await onSaveVersion(script.id, version.content);
+    } finally {
+      setIsSaving(false);
     }
   };
+
+
 
   const config = statusConfig[script.status];
 
@@ -135,9 +149,9 @@ export function ScriptDetail({
 
       {/* Tabs Menu */}
       <div className="flex border-b border-gray-100 shrink-0 bg-white px-2">
-        {(['editor', 'comments', 'versions', 'flow'] as Tab[]).map((tab) => {
-          const labels = { editor: 'Texto', comments: 'Notas', versions: 'Versões', flow: 'Fluxo' };
-          const icons = { editor: Edit3, comments: MessageSquare, versions: History, flow: CheckCircle2 };
+        {(['editor', 'publish', 'flow'] as Tab[]).map((tab) => {
+          const labels = { editor: 'Roteiro', publish: 'Publicação', flow: 'Fluxo' };
+          const icons = { editor: Edit3, publish: Podcast, flow: CheckCircle2 };
           const Icon = icons[tab];
           return (
             <button
@@ -148,11 +162,7 @@ export function ScriptDetail({
             >
               <Icon className="w-4 h-4" />
               {labels[tab]}
-              {tab === 'comments' && script.comments.length > 0 && (
-                <span className="bg-gray-900 text-white rounded-full px-1.5 py-0.5 text-[9px] absolute -top-1 ml-12">
-                  {script.comments.length}
-                </span>
-              )}
+
               {activeTab === tab && (
                 <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-t-full" />
               )}
@@ -168,11 +178,44 @@ export function ScriptDetail({
           {/* EDITOR TAB */}
           {activeTab === 'editor' && (
             <motion.div key="editor" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 flex-1 flex flex-col">
-              <div className="bg-white border text-gray-900 border-gray-200 rounded-xl overflow-hidden flex-1 flex flex-col shadow-sm focus-within:ring-2 ring-gray-200 transition-all">
+              
+              {/* VERSION SELECTOR */}
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+                  <History className="w-4 h-4 text-gray-400" />
+                  <select 
+                    value={selectedVersionId} 
+                    onChange={e => setSelectedVersionId(e.target.value)}
+                    className="text-sm font-medium bg-transparent outline-none cursor-pointer text-gray-700"
+                  >
+                    {script.versions.map((v, i) => {
+                      const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(v.createdAt));
+                      return (
+                        <option key={v.id} value={v.id}>
+                          v{v.versionNumber} {i === 0 ? '(Atual)' : `- ${date}`}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                
+                {!isViewingLatest && (
+                  <button 
+                    onClick={() => handlePromoteVersion(viewedVersion)}
+                    disabled={isSaving}
+                    className="text-xs font-bold bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {isSaving ? 'Promovendo...' : 'Restaurar esta versão'}
+                  </button>
+                )}
+              </div>
+
+              <div className={`bg-white border text-gray-900 border-gray-200 rounded-xl overflow-hidden flex-1 flex flex-col shadow-sm transition-all ${isViewingLatest ? 'focus-within:ring-2 ring-gray-200' : 'bg-gray-50'}`}>
                 <textarea
-                  value={draftContent}
-                  onChange={(e) => setDraftContent(e.target.value)}
-                  className="w-full flex-1 p-5 resize-none outline-none text-base leading-relaxed"
+                  value={isViewingLatest ? draftContent : viewedVersion.content}
+                  onChange={(e) => isViewingLatest && setDraftContent(e.target.value)}
+                  readOnly={!isViewingLatest}
+                  className="w-full flex-1 p-5 resize-none outline-none text-base leading-relaxed bg-transparent"
                   placeholder="Escreva seu roteiro aqui..."
                 />
                 <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 font-medium">
@@ -180,117 +223,105 @@ export function ScriptDetail({
                     <span className="flex items-center gap-1.5"><FileText className="w-4 h-4 text-gray-400" /> {wordCount} palavras</span>
                     <span className="flex items-center gap-1.5"><Mic className="w-4 h-4 text-purple-400" /> {audioTimeDisplay} de áudio</span>
                   </div>
+                  {!isViewingLatest && (
+                     <span className="text-amber-600 bg-amber-50 px-2 py-1 rounded font-bold">Modo de Visualização</span>
+                  )}
                 </div>
               </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={handleSaveDraft}
-                  disabled={!hasUnsavedChanges}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all
-                    ${hasUnsavedChanges 
-                      ? 'bg-gray-900 text-white shadow-lg active:scale-95' 
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-                >
-                  <Save className="w-4 h-4" />
-                  Salvar Revisão
-                </button>
-              </div>
+
+              {isViewingLatest && (
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={handleSaveDraft}
+                    disabled={!hasUnsavedChanges || isSaving}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all
+                      ${hasUnsavedChanges && !isSaving
+                        ? 'bg-gray-900 text-white shadow-lg active:scale-95' 
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                  >
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {isSaving ? 'Salvando...' : 'Salvar Revisão'}
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
 
-          {/* COMMENTS TAB */}
-          {activeTab === 'comments' && (
-            <motion.div key="comments" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col bg-gray-50">
-              <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-                {script.comments.length === 0 ? (
-                  <div className="text-center text-gray-400 p-8 flex flex-col items-center">
-                    <MessageSquare className="w-10 h-10 opacity-20 mb-2" />
-                    <p className="text-sm">Nenhum comentário nesta versão.</p>
-                  </div>
-                ) : (
-                  script.comments.map(c => {
-                    const isMe = c.userId === currentUser.id;
-                    const cAuthor = usersMap[c.userId];
-                    const time = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' }).format(new Date(c.createdAt));
-                    
-                    return (
-                      <div key={c.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                        <img src={cAuthor?.avatar} alt={cAuthor?.name} className="w-8 h-8 rounded-full border border-gray-200 bg-white shrink-0" />
-                        <div className={`max-w-[80%] rounded-2xl p-3 shadow-sm ${isMe ? 'bg-gray-900 text-white rounded-tr-none' : 'bg-white rounded-tl-none border border-gray-100'}`}>
-                          <div className={`text-[10px] uppercase tracking-wider font-bold mb-1 opacity-70 ${isMe ? 'text-gray-300 text-right' : 'text-gray-500'}`}>
-                            {isMe ? 'Você' : cAuthor?.name} • {time}
-                          </div>
-                          <p className="text-sm leading-relaxed">{c.text}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-                <div ref={commentsEndRef} />
-              </div>
-              
-              {/* Comment Input */}
-              <div className="p-3 bg-white border-t border-gray-100 flex items-center gap-2 shrink-0">
-                <input
-                  type="text"
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendComment()}
-                  placeholder="Adicionar nota para revisão..."
-                  className="flex-1 bg-gray-100 placeholder:text-gray-400 px-4 py-3 rounded-full text-sm outline-none focus:ring-2 focus:ring-gray-200 transition-shadow"
-                />
-                <button
-                  onClick={handleSendComment}
-                  disabled={!commentText.trim()}
-                  className="bg-gray-900 text-white p-3 rounded-full disabled:opacity-50 transition-opacity active:scale-95 shrink-0"
-                >
-                  <Send className="w-4 h-4 ml-0.5" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* VERSIONS TAB */}
-          {activeTab === 'versions' && (
-            <motion.div key="versions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 space-y-3">
-              {script.versions.map((v, i) => {
-                const isLatest = i === 0;
-                const author = usersMap[v.authorId];
-                const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(v.createdAt));
+          {/* PUBLISH TAB */}
+          {activeTab === 'publish' && (
+            <motion.div key="publish" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col bg-gray-50 p-6 overflow-y-auto">
+              <div className="max-w-2xl mx-auto w-full space-y-6">
                 
-                return (
-                  <div key={v.id} className={`p-4 rounded-xl border ${isLatest ? 'bg-white border-gray-200 shadow-sm' : 'bg-transparent border-gray-200/60 opacity-80'}`}>
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-gray-900">v{v.versionNumber}</span>
-                        {isLatest && <span className="text-[10px] uppercase font-bold bg-gray-100 px-2 py-0.5 rounded text-gray-600 tracking-wider">Atual</span>}
-                      </div>
-                      <span className="text-xs text-gray-400">{date}</span>
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">
+                    <Podcast className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Publicar no Spotify</h3>
+                    <p className="text-sm text-gray-500 mt-1">Preencha os dados abaixo para submeter este episódio à plataforma.</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-5">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Título do Episódio</label>
+                    <input 
+                      type="text" 
+                      defaultValue={script.title}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:bg-white transition-all"
+                      placeholder="Ex: A Grande Aventura..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Descrição (Show Notes)</label>
+                    <textarea 
+                      defaultValue={script.synopsis}
+                      rows={4}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 focus:bg-white transition-all"
+                      placeholder="Descreva o que acontece neste episódio..."
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1.5 flex items-center gap-2">
+                        <LinkIcon className="w-4 h-4 text-gray-400" /> URL da Capa
+                      </label>
+                      <input 
+                        type="url" 
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:bg-white transition-all"
+                        placeholder="https://..."
+                      />
                     </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <img src={author?.avatar} className="w-4 h-4 rounded-full" />
-                        <span>Editado por {author?.name}</span>
-                      </div>
-                      {!isLatest && (
-                        <button
-                          onClick={() => {
-                            if (window.confirm('Tem certeza que deseja promover esta versão antiga para a atual?')) {
-                              onSaveVersion(script.id, v.content);
-                              setActiveTab('editor');
-                            }
-                          }}
-                          className="font-bold text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
-                        >
-                          Tornar Atual
-                        </button>
-                      )}
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1.5 flex items-center gap-2">
+                        <Headphones className="w-4 h-4 text-gray-400" /> URL do Áudio Final
+                      </label>
+                      <input 
+                        type="url" 
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:bg-white transition-all"
+                        placeholder="https://..."
+                      />
                     </div>
                   </div>
-                );
-              })}
+                </div>
+                
+                <div className="flex justify-end pt-4">
+                  <button 
+                    onClick={() => alert("Simulação de Publicação: Os dados foram processados com sucesso! (Nenhum banco foi alterado)")}
+                    className="bg-[#1DB954] hover:bg-[#1ed760] text-white font-bold py-3.5 px-8 rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    <Podcast className="w-5 h-5" />
+                    Publicar Episódio
+                  </button>
+                </div>
+                
+              </div>
             </motion.div>
           )}
+
+
 
           {/* FLOW TAB */}
           {activeTab === 'flow' && (
