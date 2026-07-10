@@ -89,7 +89,7 @@ export function ScriptDetail({
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             {isEditingTitle ? (
               <input
                 autoFocus
