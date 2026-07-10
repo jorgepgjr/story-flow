@@ -60,6 +60,15 @@ export async function updateScriptStatus(id: string, status: ScriptStatus): Prom
   if (!res.ok) throw new Error('Failed to update status');
 }
 
+export async function updateScriptTitle(id: string, title: string): Promise<void> {
+  const res = await fetch('/api/title', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, title }),
+  });
+  if (!res.ok) throw new Error('Failed to update title');
+}
+
 export async function deleteScript(id: string): Promise<void> {
   const res = await fetch(`/api/scripts?id=${id}`, {
     method: 'DELETE',

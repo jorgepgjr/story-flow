@@ -101,6 +101,18 @@ export default function App() {
     }
   };
 
+  const handleUpdateTitle = async (id: string, title: string) => {
+    try {
+      await api.updateScriptTitle(id, title);
+      setScripts(prev => prev.map(s => 
+        s.id === id ? { ...s, title, updatedAt: new Date().toISOString() } : s
+      ));
+    } catch (err) {
+      console.error("Erro ao atualizar título:", err);
+      alert("Falha ao atualizar título");
+    }
+  };
+
   const handleAddComment = async (scriptId: string, text: string) => {
     const newComment: Comment = {
       id: `c_${Date.now()}`,
@@ -269,6 +281,7 @@ export default function App() {
               usersMap={usersMap}
               onBack={() => setSelectedScriptId(null)}
               onUpdateStatus={handleUpdateStatus}
+              onUpdateTitle={handleUpdateTitle}
               onAddComment={handleAddComment}
               onSaveVersion={handleSaveVersion}
               onDeleteScript={handleDeleteScript}

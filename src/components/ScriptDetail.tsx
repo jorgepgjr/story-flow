@@ -10,6 +10,7 @@ interface ScriptDetailProps {
   usersMap: Record<string, User>;
   onBack: () => void;
   onUpdateStatus: (id: string, status: ScriptStatus) => void;
+  onUpdateTitle?: (id: string, newTitle: string) => void;
   onAddComment: (id: string, text: string) => void;
   onSaveVersion: (id: string, content: string) => void;
   onDeleteScript: (id: string) => void;
@@ -18,7 +19,7 @@ interface ScriptDetailProps {
 type Tab = 'editor' | 'comments' | 'versions' | 'flow';
 
 export function ScriptDetail({ 
-  script, currentUser, usersMap, onBack, onUpdateStatus, onAddComment, onSaveVersion, onDeleteScript 
+  script, currentUser, usersMap, onBack, onUpdateStatus, onUpdateTitle, onAddComment, onSaveVersion, onDeleteScript 
 }: ScriptDetailProps) {
   
   const [activeTab, setActiveTab] = useState<Tab>('editor');
@@ -27,6 +28,24 @@ export function ScriptDetail({
   const [draftContent, setDraftContent] = useState(currentVersion?.content || '');
   const [commentText, setCommentText] = useState('');
   const commentsEndRef = useRef<HTMLDivElement>(null);
+  
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState(script.title);
+
+  useEffect(() => {
+    if (!isEditingTitle) {
+      setEditTitle(script.title);
+    }
+  }, [script.title, isEditingTitle]);
+
+  const handleTitleSubmit = () => {
+    if (editTitle.trim() && editTitle !== script.title) {
+      onUpdateTitle?.(script.id, editTitle.trim());
+    } else {
+      setEditTitle(script.title);
+    }
+    setIsEditingTitle(false);
+  };
 
   // Auto-scroll comments
   useEffect(() => {
@@ -71,7 +90,25 @@ export function ScriptDetail({
         </button>
         <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-xl font-bold text-gray-900 truncate">{script.title}</h2>
+            {isEditingTitle ? (
+              <input
+                autoFocus
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onBlur={handleTitleSubmit}
+                onKeyDown={(e) => e.key === 'Enter' && handleTitleSubmit()}
+                className="text-xl font-bold text-gray-900 w-full bg-transparent border-b-2 border-gray-900 outline-none pb-0.5"
+              />
+            ) : (
+              <h2 
+                onClick={() => setIsEditingTitle(true)}
+                className="text-xl font-bold text-gray-900 truncate cursor-pointer hover:opacity-70 transition-opacity"
+                title="Clique para editar"
+              >
+                {script.title}
+              </h2>
+            )}
             <div className="flex items-center gap-2 mt-1">
               <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${config.color}`}>
                 {config.label}
